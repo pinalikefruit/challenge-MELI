@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
-app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')  # Asegúrate de que esta línea carga la clave correctamente
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 jwt = JWTManager(app)
 
 client = MongoClient(os.getenv('MONGO_URI'))
@@ -59,10 +59,13 @@ def is_valid_iso_date(date_string):
 def encrypt_data(data):
     encrypted_data = {}
     for key, value in data.items():
-        if isinstance(value, str):
-            encrypted_value = 'ENC:' + cipher_suite.encrypt(value.encode()).decode()
-            encrypted_data[key] = encrypted_value
-            logger.info(f"Encrypted {key}: {encrypted_value}")
+        if key in ['credit_card_num', 'credit_card_ccv', 'cuenta_numero', 'direccion', 'foto_dni', 'ip']:
+            if isinstance(value, str):
+                encrypted_value = 'ENC:' + cipher_suite.encrypt(value.encode()).decode()
+                encrypted_data[key] = encrypted_value
+                logger.info(f"Encrypted {key}: {encrypted_value}")
+            else:
+                encrypted_data[key] = value
         else:
             encrypted_data[key] = value
     return encrypted_data
@@ -70,7 +73,10 @@ def encrypt_data(data):
 def decrypt_data(data):
     decrypted_data = {}
     for key, value in data.items():
-        if isinstance(value, str) and value.startswith('ENC:'):
+        if key in ['credit_card_num', 'credit_card_ccv', 'cuenta_numero', 'direccion', 'foto_dni', 'ip']:
+            # No desencriptar datos sensibles
+            decrypted_data[key] = value
+        elif isinstance(value, str) and value.startswith('ENC:'):
             try:
                 decrypted_value = cipher_suite.decrypt(value[4:].encode()).decode()
                 decrypted_data[key] = decrypted_value
@@ -100,11 +106,19 @@ def home():
 @jwt_required()
 def fetch_data():
     url = 'https://62433a7fd126926d0c5d296b.mockapi.io/api/v1/usuarios'
-    response = requests.get(url)
-    if response.status_code != 200:
-        logger.error(f"Error fetching data: {response.status_code}")
-        return jsonify({"msg": "Error fetching data"}), response.status_code
-    
+    response = requests.get(url, verify=True)
+    try:
+        response.raise_for_status()
+    except requests.exceptions.SSLError as e:
+        logger.error(f"Error de SSL: {e}")
+        return jsonify({"msg": "SSL Error"}), 500
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Error HTTP: {e}")
+        return jsonify({"msg": f"HTTP Error: {e}"}), response.status_code
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error en la solicitud: {e}")
+        return jsonify({"msg": "Request Error"}), 500
+
     users = response.json()
     logger.info("Fetched users from external API:")
     logger.info(users)
@@ -147,11 +161,27 @@ def get_usuarios():
     logger.info("Fetched encrypted users from MongoDB:")
     for user in encrypted_users:
         logger.info(user)
+    
     users = [decrypt_data(user) for user in encrypted_users]
-    logger.info("Decrypted users:")
+    
+    # No se necesita eliminar los datos sensibles, ya que no fueron desencriptados en decrypt_data
+    logger.info("Safe users:")
     for user in users:
         logger.info(user)
+    
     return jsonify(users), 200
+
+@app.route('/usuarios/<user_id>', methods=['GET'])
+@jwt_required()
+def get_usuario_by_id(user_id):
+    logger.info(f"Fetching user with ID: {user_id}")
+    encrypted_user = collection.find_one({'id': user_id}, {'_id': 0})
+    if not encrypted_user:
+        logger.warning(f"User with ID {user_id} not found")
+        return jsonify({"msg": "User not found"}), 404
+    decrypted_user = decrypt_data(encrypted_user)
+    logger.info(f"Decrypted user: {decrypted_user}")
+    return jsonify(decrypted_user), 200
 
 if __name__ == '__main__':
     app.run(port=int(os.getenv('PORT', 5000)), debug=True)

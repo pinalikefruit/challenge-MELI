@@ -1,47 +1,135 @@
-1. Levantar base de datos
-`mongod --dbpath /data/db --logpath /var/log/mongodb/mongod.log`
-2. Levantar servidor 
-`ngrok http 5000`
-3. Aplicacion
-`source venv/bin/activate`
-`python3 app.py`
-4. Solicitudes
+# Security Challenge 2022
 
-- Acceso
+## Descripción de la Aplicación
+Esta aplicación es una API diseñada para manejar de manera segura la recepción, almacenamiento y distribución de información sensible de los clientes obtenida a través de un endpoint externo. Utiliza Flask como framework de servidor, MongoDB para el almacenamiento de datos y cifrado de datos sensibles con Fernet para garantizar la seguridad durante el tránsito y el almacenamiento.
+
+### Supuestos
+- La API maneja datos sensibles y debe garantizar la seguridad en todos los estados.
+- La información sensible debe estar cifrada en todo momento, excepto durante el procesamiento en memoria.
+
+### Problemas y Soluciones
+- **Problema**: Riesgo de exposición de datos sensibles durante el tránsito.
+  - **Solución**: Cifrado de datos sensibles antes de su almacenamiento y aseguramiento de las comunicaciones con TLS.
+- **Problema**: Necesidad de acceder a diferentes tipos de datos según el departamento de la empresa.
+  - **Solución**: Implementación de roles en JWT que limitan el acceso a los datos según las necesidades del departamento.
+
+### Evidencias
+![](path_to_screenshot.png)
+*Captura de pantalla del funcionamiento de la API.*
+
+## Instrucciones de Ejecución
+
+### Requisitos Previos
+- Python 3.8 o superior
+- MongoDB
+- Dependencias de Python listadas en `requirements.txt`
+
+### Instalación de Dependencias
+Instalar las dependencias necesarias ejecutando:
+```bash
+pip install -r requirements.txt
+```
+
+### Configuración de Variables de Entorno
+Configurar el archivo `.env.example` a archivo .env en el directorio raíz del proyecto y actualizar las siguientes variable:
+
+* `JWT_SECRET_KEY`: Clave secreta para JWT.
+* `MONGO_URI`: URI de conexión a MongoDB.
+* `ENCRYPTION_KEY`: Clave para el cifrado Fernet.
+
+### Ejecución de la Aplicación
+Ejecutar la aplicación con:
+
+```
+python app.py
+```
+
+
+## Comunicación con la API
+### Acceso
+Para obtener un token de acceso:
+
+```bash
 curl -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"password"}' https://d46c-190-221-146-98.ngrok-free.app/login
+```
 
-- Fectch data
-curl -X GET -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTcxNzQyNjEyMSwianRpIjoiOGI2MWFkZWItM2E3NC00MmQ5LTk2Y2MtMTc3NTI3MWNhY2Y2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImFkbWluIiwibmJmIjoxNzE3NDI2MTIxLCJjc3JmIjoiNWEwZGVjY2QtZTRhMy00ODRhLWJjYWMtNmRiYmIzZmYxMzI5IiwiZXhwIjoxNzE3NDI3MDIxfQ.VI7bwr26RQIX8cmhoomxTzYvmQXlKpJUvqbxzuq9FCA" https://d46c-190-221-146-98.ngrok-free.app/fetch-data
+### Fetch Data
+Para obtener y almacenar datos desde el proveedor externo:
 
-- Obtener la data encriptada
-curl -X GET -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTcxNzQyNjEyMSwianRpIjoiOGI2MWFkZWItM2E3NC00MmQ5LTk2Y2MtMTc3NTI3MWNhY2Y2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImFkbWluIiwibmJmIjoxNzE3NDI2MTIxLCJjc3JmIjoiNWEwZGVjY2QtZTRhMy00ODRhLWJjYWMtNmRiYmIzZmYxMzI5IiwiZXhwIjoxNzE3NDI3MDIxfQ.VI7bwr26RQIX8cmhoomxTzYvmQXlKpJUvqbxzuq9FCA" https://d46c-190-221-146-98.ngrok-free.app/usuarios/usuarios
+```bash
+curl -X GET -H "Authorization: Bearer <your_token>" https://d46c-190-221-146-98.ngrok-free.app/fetch-data
+```
+
+### Obtener la Data Encriptada
+Para obtener todos los datos de usuarios encriptados:
+
+```bash
+curl -X GET -H "Authorization: Bearer <your_token>" https://d46c-190-221-146-98.ngrok-free.app/usuarios/
+```
+
+Para obtener datos de un usuario específico por ID:
+```bash
+curl -X GET -H "Authorization: Bearer <your_token>" https://d46c-190-221-146-98.ngrok-free.app/usuarios/<ID>
+```
+
+### Uso en Postman
+1. Acceso:
+
+* Método: POST
+* URL: https://d46c-190-221-146-98.ngrok-free.app/login
+* Body:
+```json
+{
+  "username": "admin",
+  "password": "password"
+}
+```
+* Enviar la solicitud para obtener el token.
+
+2. Fetch Data:
+
+* Método: GET
+* URL: https://d46c-190-221-146-98.ngrok-free.app/fetch-data
+* Headers:
+Key: Authorization
+Value: Bearer <your_token>
+
+3. Obtener la Data Encriptada:
+
+* Método: GET
+* URL: https://d46c-190-221-146-98.ngrok-free.app/usuarios/
+* Headers:
+Key: Authorization
+Value: Bearer <your_token>
 
 
-- Obtener la data encriptada
-curl -X GET -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTcxNzQyNjEyMSwianRpIjoiOGI2MWFkZWItM2E3NC00MmQ5LTk2Y2MtMTc3NTI3MWNhY2Y2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImFkbWluIiwibmJmIjoxNzE3NDI2MTIxLCJjc3JmIjoiNWEwZGVjY2QtZTRhMy00ODRhLWJjYWMtNmRiYmIzZmYxMzI5IiwiZXhwIjoxNzE3NDI3MDIxfQ.VI7bwr26RQIX8cmhoomxTzYvmQXlKpJUvqbxzuq9FCA" https://d46c-190-221-146-98.ngrok-free.app/usuarios/1
+4. Obtener Datos de Usuario Específico:
 
-5. Chequar BD
-mongo
-use security-challenge
-db.usuarios.find().pretty() 
-
-
-To Do
-
-* Roles Disponibilidad de datos: establecer el tipo de control, la forma de obtener los datos y los posibles consumidores.
-Proporciona API seguras para que otros equipos puedan consumir los datos.
-Asegúrate de que solo los usuarios y aplicaciones autorizados puedan acceder a los datos.
-al descencriptar, no mostrar las tarjetas de creditos.
+* Método: GET
+* URL: https://d46c-190-221-146-98.ngrok-free.app/usuarios/1
+* Headers:
+Key: Authorization
+Value: Bearer <your_token>
 
 
-* Instrucciones para la ejecución de la aplicación (incluida cualquier aplicación o librería a
-instalar para el correcto funcionamiento del programa).
-* Descripción de la aplicación realizada, supuestos, problemas y soluciones con los que se
-encontró al realizar la misma con evidencias en png.
-* Análisis de riesgo de la solución planteada.
-* Dockerizar la aplicación.
-* Documentación del proceso (Diagrama de clases, Arquitectura, etc)
-* Update requirements
-* Implementa controles como encriptación de datos en reposo y en tránsito, autenticación multifactor (MFA), y monitoreo continuo para detectar accesos no autorizados.
-* Mantén registros detallados de acceso y actividades para auditorías.
-* Frontend
+### Análisis de Riesgo de la Solución Planteada
+
+* *Riesgo de filtración de datos*: Alto. Si las claves de cifrado son expuestas. Se recomienda rotar regularmente las claves y almacenarlas de manera segura.
+* *Riesgo de acceso no autorizado*: Medio. Aunque se utiliza JWT para la autenticación, la configuración y manejo de los tokens debe ser rigurosa para evitar explotaciones.
+* *Riesgo de ataques de inyección*: Bajo. Se utiliza validación de esquemas para evitar inyecciones no deseadas en la base de datos.
+
+#### Arquitectura de la Aplicación
+
+Diagrama de arquitectura mostrando cómo los componentes interactúan entre sí y con los servicios externos.
+
+![Imagen](/image.png)
+
+Explicación del Diagrama:
+
+* Proveedor Externo: Fuente de datos externa que proporciona la información de los usuarios. 
+* Aplicación de Consumo de Datos: Tu aplicación que consume los datos desde el proveedor externo.
+* Base de Datos Segura: Almacena los datos cifrados y procesados de manera segura.
+* Aplicaciones Internas: Aplicaciones dentro de la empresa que consumen los datos a través de la API REST
+
+
+Este README proporciona una guía completa sobre cómo configurar y utilizar la aplicación, incluyendo ejemplos de cómo los diferentes departamentos pueden interactuar con la API utilizando `curl` y Postman.

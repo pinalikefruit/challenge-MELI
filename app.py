@@ -139,7 +139,7 @@ def fetch_data():
                 encrypted_user = encrypt_data(user)
                 logger.info(f"Encrypted user: {encrypted_user}")
                 valid_users.append(encrypted_user)
-            else:
+            else:x
                 logger.warning(f"Validation errors for user {user['id']}: {validator.errors}")
         except (ValueError, KeyError) as e:
             logger.error(f"Error al convertir datos para el usuario {user['id']}: {e}")

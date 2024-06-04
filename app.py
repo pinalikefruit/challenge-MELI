@@ -17,16 +17,17 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
-# app.config['JWT_SECRET_KEY_USER'] = os.getenv('JWT_SECRET_KEY_USER')
-# app.config['JWT_SECRET_KEY_ADMIN'] = os.getenv('JWT_SECRET_KEY_ADMIN')
-
-# Inicializa JWTManager con una clave temporal
-# app.config['JWT_SECRET_KEY'] = app.config['JWT_SECRET_KEY_ADMIN']
 
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 jwt = JWTManager(app)
 
 admin_key = os.getenv('ADMIN_SECRET_KEY')
+user_key = os.getenv('USER_SECRET_KEY')
+bi_key = os.getenv('BI_SECRET_KEY')
+marketing_key = os.getenv('MARKETING_SECRET_KEY')
+atencion_key = os.getenv('ATENCION_SECRET_KEY')
+finanzas_key = os.getenv('FINANZAS_SECRET_KEY')
+seguridad_key = os.getenv('SEGURIDAD_SECRET_KEY')
 
 client = MongoClient(os.getenv('MONGO_URI'))
 db = client['security-challenge']
@@ -60,13 +61,13 @@ user_schema = {
 
 users = {
     'admin': {'password': admin_key , 'role': 'admin'},
-    'user': {'password': admin_key, 'role': 'user'},
-    'bi_user': {'password': admin_key, 'role': 'business_intelligence'},
-    'marketing_user': {'password': admin_key, 'role': 'marketing'},
-    'atencion_user': {'password': admin_key, 'role': 'atencion_al_cliente'},
-    'finanzas_user': {'password': admin_key, 'role': 'finanzas'},
-    'seguridad_user': {'password': admin_key, 'role': 'seguridad_y_fraude'}
-}
+    'user': {'password': user_key, 'role': 'user'},
+    'bi_user': {'password': bi_key, 'role': 'business_intelligence'},
+    'marketing_user': {'password': marketing_key, 'role': 'marketing'},
+    'atencion_user': {'password': atencion_key, 'role': 'atencion_al_cliente'},
+    'finanzas_user': {'password': finanzas_key, 'role': 'finanzas'},
+    'seguridad_user': {'password': seguridad_key, 'role': 'seguridad_y_fraude'}
+} 
 
 def is_valid_iso_date(date_string):
     try:
@@ -201,21 +202,34 @@ def get_usuarios():
     for user in encrypted_users:
         logger.info(user)
     
-    users = [decrypt_data(user) for user in encrypted_users]
+    decrypted_users = [decrypt_data(user) for user in encrypted_users]
+    filtered_users = []
+    for user in decrypted_users:
+        if role == 'business_intelligence':
+            filtered_user = {key: value for key, value in user.items() if key not in ['credit_card_num', 'credit_card_ccv', 'cuenta_numero', 'foto_dni', 'ip']}
+        elif role == 'marketing':
+            filtered_user = {key: value for key, value in user.items() if key in ['user_name', 'codigo_zip', 'color_favorito', 'cantidad_compras_realizadas', 'geo_latitud', 'geo_longitud']}
+        elif role == 'atencion_al_cliente':
+            filtered_user = {key: value for key, value in user.items() if key in ['user_name', 'direccion', 'ip', 'cantidad_compras_realizadas', 'auto', 'auto_modelo', 'auto_tipo', 'auto_color']}
+        elif role == 'finanzas':
+            filtered_user = {key: value for key, value in user.items() if key in ['user_name', 'credit_card_num', 'credit_card_ccv', 'cuenta_numero']}
+        elif role == 'seguridad_y_fraude':
+            filtered_user = {key: value for key, value in user.items() if key in ['user_name', 'direccion', 'ip', 'foto_dni', 'geo_latitud', 'geo_longitud', 'credit_card_num', 'credit_card_ccv']}
+        elif role == 'admin':
+            filtered_user = user  # Admin role has access to all data
+        else:
+            logger.warning(f"Role {role} not authorized to access user data")
+            return jsonify({"msg": "Access forbidden: insufficient privileges"}), 403
+        filtered_users.append(filtered_user)
 
-    if role != 'admin':
-        users = [{'user_name': user['user_name']} for user in users]
+    logger.info(f"Filtered user data for role {role}:")
+    for user in filtered_users:
+        logger.info(user)
 
-    # No se necesita eliminar los datos sensibles, ya que no fueron desencriptados en decrypt_data
-    logger.info("Safe users:")
-    for user in users:
-        logger.info(user)   
-    
-    return jsonify(users), 200
+    return jsonify(filtered_users), 200
 
 @app.route('/usuarios/<user_id>', methods=['GET'])
 @jwt_required()
-@role_required('admin')
 def get_usuario_by_id(user_id):
     logger.info(f"Fetching user with ID: {user_id}")
     encrypted_user = collection.find_one({'id': user_id}, {'_id': 0})
@@ -223,8 +237,28 @@ def get_usuario_by_id(user_id):
         logger.warning(f"User with ID {user_id} not found")
         return jsonify({"msg": "User not found"}), 404
     decrypted_user = decrypt_data(encrypted_user)
-    logger.info(f"Decrypted user: {decrypted_user}")
-    return jsonify(decrypted_user), 200
+    claims = get_jwt()
+    role = claims['role']
+
+    # Filtrar datos según el rol
+    if role == 'business_intelligence':
+        filtered_user = {key: value for key, value in decrypted_user.items() if key not in ['credit_card_num', 'credit_card_ccv', 'cuenta_numero', 'foto_dni', 'ip']}
+    elif role == 'marketing':
+        filtered_user = {key: value for key, value in decrypted_user.items() if key in ['user_name', 'codigo_zip', 'color_favorito', 'cantidad_compras_realizadas', 'geo_latitud', 'geo_longitud']}
+    elif role == 'atencion_al_cliente':
+        filtered_user = {key: value for key, value in decrypted_user.items() if key in ['user_name', 'direccion', 'ip', 'cantidad_compras_realizadas', 'auto', 'auto_modelo', 'auto_tipo', 'auto_color']}
+    elif role == 'finanzas':
+        filtered_user = {key: value for key, value in decrypted_user.items() if key in ['user_name', 'credit_card_num', 'credit_card_ccv', 'cuenta_numero']}
+    elif role == 'seguridad_y_fraude':
+        filtered_user = {key: value for key, value in decrypted_user.items() if key in ['user_name', 'direccion', 'ip', 'foto_dni', 'geo_latitud', 'geo_longitud', 'credit_card_num', 'credit_card_ccv']}
+    elif role == 'admin':
+        filtered_user = decrypted_user  # Admin tiene acceso a todos los datos
+    else:
+        logger.warning(f"Role {role} not authorized to access this data")
+        return jsonify({"msg": "Access forbidden: insufficient privileges"}), 403
+
+    logger.info(f"Filtered user data for role {role}: {filtered_user}")
+    return jsonify(filtered_user), 200
 
 if __name__ == '__main__':
     app.run(port=int(os.getenv('PORT', 5000)), debug=True)

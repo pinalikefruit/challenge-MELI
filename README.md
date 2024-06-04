@@ -14,8 +14,8 @@ Esta aplicación es una API diseñada para manejar de manera segura la recepció
   - **Solución**: Implementación de roles en JWT que limitan el acceso a los datos según las necesidades del departamento.
 
 ### Evidencias
-![](path_to_screenshot.png)
-*Captura de pantalla del funcionamiento de la API.*
+![Producto](/image/test.png)
+*Captura de pantalla del funcionamiento de la API. Usando el rol del departamento de Seguridad y el Id = 100*
 
 ## Instrucciones de Ejecución
 
@@ -40,7 +40,7 @@ Configurar el archivo `.env.example` a archivo .env en el directorio raíz del p
 ### Ejecución de la Aplicación
 Ejecutar la aplicación con:
 
-```
+```bash
 python app.py
 ```
 
@@ -50,11 +50,13 @@ python app.py
 Para obtener un token de acceso:
 
 ```bash
-curl -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"password"}' https://d46c-190-221-146-98.ngrok-free.app/login
+curl -X POST https://18ad-190-221-146-98.ngrok-free.app/login \
+    -H "Content-Type: application/json" \
+    -d '{"username": "<ROLE>", "password": "<KEY_USER>"}'
 ```
 
 ### Fetch Data
-Para obtener y almacenar datos desde el proveedor externo:
+Para obtener y almacenar datos desde el proveedor externo (permitido solo para el admin):
 
 ```bash
 curl -X GET -H "Authorization: Bearer <your_token>" https://d46c-190-221-146-98.ngrok-free.app/fetch-data
@@ -72,45 +74,6 @@ Para obtener datos de un usuario específico por ID:
 curl -X GET -H "Authorization: Bearer <your_token>" https://d46c-190-221-146-98.ngrok-free.app/usuarios/<ID>
 ```
 
-### Uso en Postman
-1. Acceso:
-
-* Método: POST
-* URL: https://d46c-190-221-146-98.ngrok-free.app/login
-* Body:
-```json
-{
-  "username": "admin",
-  "password": "password"
-}
-```
-* Enviar la solicitud para obtener el token.
-
-2. Fetch Data:
-
-* Método: GET
-* URL: https://d46c-190-221-146-98.ngrok-free.app/fetch-data
-* Headers:
-Key: Authorization
-Value: Bearer <your_token>
-
-3. Obtener la Data Encriptada:
-
-* Método: GET
-* URL: https://d46c-190-221-146-98.ngrok-free.app/usuarios/
-* Headers:
-Key: Authorization
-Value: Bearer <your_token>
-
-
-4. Obtener Datos de Usuario Específico:
-
-* Método: GET
-* URL: https://d46c-190-221-146-98.ngrok-free.app/usuarios/1
-* Headers:
-Key: Authorization
-Value: Bearer <your_token>
-
 
 ### Análisis de Riesgo de la Solución Planteada
 
@@ -122,7 +85,7 @@ Value: Bearer <your_token>
 
 Diagrama de arquitectura mostrando cómo los componentes interactúan entre sí y con los servicios externos.
 
-![Imagen](/image.png)
+![Imagen](image/image.png)
 
 Explicación del Diagrama:
 
@@ -130,6 +93,49 @@ Explicación del Diagrama:
 * Aplicación de Consumo de Datos: Tu aplicación que consume los datos desde el proveedor externo.
 * Base de Datos Segura: Almacena los datos cifrados y procesados de manera segura.
 * Aplicaciones Internas: Aplicaciones dentro de la empresa que consumen los datos a través de la API REST
+
+
+### Explicación del Procedimiento Paso a Paso
+#### Objetivo
+Dado el contexto otorgado, realicé un análisis de cómo consumir y posteriormente almacenar estos datos de datos no relacional de manera segura. Además, disponibilicé esta información para que distintos departamentos y aplicaciones de la empresa pudieran consumirla, teniendo en cuenta cada uno de los atributos que vienen desde este proveedor. Se realizaron los controles necesarios para asegurar esta información, estableciendo el tipo de control, la forma de obtener los datos y los posibles consumidores.
+
+#### Procedimiento
+1. Recepción de Datos:
+
+* Se implementó un endpoint /fetch-data que consume datos de un proveedor externo. Solo el admin tiene acceso.
+* Los datos recibidos son validados utilizando cerberus.
+
+2. Cifrado de Datos Sensibles:
+
+* Los datos sensibles como `credit_card_num`, `credit_card_ccv`, `cuenta_numero`, `direccion`, `foto_dni`, e `ip` son cifrados utilizando cryptography.fernet.Fernet antes de ser almacenados en MongoDB.
+
+3. Almacenamiento Seguro:
+
+* Los datos validados y cifrados son almacenados en una base de datos MongoDB.
+
+4. Distribución de Datos:
+
+* Se implementaron roles utilizando JWT para asegurar que solo los usuarios autorizados puedan acceder a los datos.
+* Se definieron roles específicos para cada departamento (BI, Marketing, Atención al Cliente, Finanzas, Seguridad y Fraude) con acceso limitado a ciertos campos de los datos.
+
+5. Seguridad de la API:
+
+* Se asegura que todas las comunicaciones con la API se realizan sobre HTTPS para proteger los datos en tránsito.
+* Se implementó autenticación basada en JWT para proteger los endpoints.
+
+6. Acceso a Datos por Roles:
+
+Se implementó la lógica en el endpoint `/usuarios` y `/usuarios/<user_id>`  para devolver datos filtrados según el rol del usuario autenticado.
+
+#### Conclusión
+Esta solución garantiza que los datos sensibles de los clientes sean manejados y almacenados de manera segura, cumpliendo con los requisitos de acceso específico para diferentes departamentos dentro de la empresa. Además, se implementaron medidas de seguridad robustas para proteger los datos en tránsito y asegurar que solo los usuarios autorizados tengan acceso a la información según su rol.
+
+
+### A Implementar 
+
+*Creación de copias de seguridad automatizadas de MongoDB*
+
+En la sección script/backup_mongodb.sh se encuentra un script para la implementación de una tarea cron que actualiza automáticamente el backup de la base de datos a intervalos regulares.
 
 
 Este README proporciona una guía completa sobre cómo configurar y utilizar la aplicación, incluyendo ejemplos de cómo los diferentes departamentos pueden interactuar con la API utilizando `curl` y Postman.

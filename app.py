@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from pymongo import MongoClient
 from cryptography.fernet import Fernet
 import requests
@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from cerberus import Validator
 from datetime import datetime
 import logging
+from functools import wraps
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -88,14 +89,27 @@ def decrypt_data(data):
             decrypted_data[key] = value
     return decrypted_data
 
+def role_required(role):
+    def wrapper(fn):
+        @wraps(fn)
+        def decorator(*args, **kwargs):
+            claims = get_jwt()
+            if claims['role'] != role:
+                return jsonify({"msg": "Access forbidden: insufficient privileges"}), 403
+            return fn(*args, **kwargs)
+        return decorator
+    return wrapper
+
 @app.route('/login', methods=['POST'])
 def login():
     username = request.json.get('username', None)
     password = request.json.get('password', None)
+    role = request.json.get('role', None)
+
     if username != 'admin' or password != 'password':
         return jsonify({"msg": "Bad username or password"}), 401
 
-    access_token = create_access_token(identity=username)
+    access_token = create_access_token(identity=username, additional_claims={"role": role})
     return jsonify(access_token=access_token)
 
 @app.route('/')
@@ -104,6 +118,7 @@ def home():
 
 @app.route('/fetch-data', methods=['GET'])
 @jwt_required()
+@role_required('admin')
 def fetch_data():
     url = 'https://62433a7fd126926d0c5d296b.mockapi.io/api/v1/usuarios'
     response = requests.get(url, verify=True)
@@ -139,7 +154,7 @@ def fetch_data():
                 encrypted_user = encrypt_data(user)
                 logger.info(f"Encrypted user: {encrypted_user}")
                 valid_users.append(encrypted_user)
-            else:x
+            else:
                 logger.warning(f"Validation errors for user {user['id']}: {validator.errors}")
         except (ValueError, KeyError) as e:
             logger.error(f"Error al convertir datos para el usuario {user['id']}: {e}")
@@ -157,6 +172,9 @@ def fetch_data():
 @app.route('/usuarios', methods=['GET'])
 @jwt_required()
 def get_usuarios():
+    claims = get_jwt()
+    role = claims['role']
+
     encrypted_users = list(collection.find({}, {'_id': 0}))
     logger.info("Fetched encrypted users from MongoDB:")
     for user in encrypted_users:
@@ -164,6 +182,9 @@ def get_usuarios():
     
     users = [decrypt_data(user) for user in encrypted_users]
     
+    if role == 'user':
+        users = [{'user_name': user['user_name']} for user in users]
+
     # No se necesita eliminar los datos sensibles, ya que no fueron desencriptados en decrypt_data
     logger.info("Safe users:")
     for user in users:
@@ -173,6 +194,7 @@ def get_usuarios():
 
 @app.route('/usuarios/<user_id>', methods=['GET'])
 @jwt_required()
+@role_required('admin')
 def get_usuario_by_id(user_id):
     logger.info(f"Fetching user with ID: {user_id}")
     encrypted_user = collection.find_one({'id': user_id}, {'_id': 0})

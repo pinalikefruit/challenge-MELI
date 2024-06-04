@@ -38,12 +38,30 @@ Configurar el archivo `.env.example` a archivo .env en el directorio raíz del p
 * `ENCRYPTION_KEY`: Clave para el cifrado Fernet.
 
 ### Ejecución de la Aplicación
-Ejecutar la aplicación con:
+#### Ejecución local
+
+Para ejecutar la aplicación localmente, sigue estos pasos:
+
+1. Levantar la base de datos MongoDB:
+Asegúrate de que MongoDB esté en funcionamiento con los siguientes comandos:
 
 ```bash
-python app.py
+mongod --dbpath /data/db --logpath /var/log/mongodb/mongod.log
 ```
 
+2. Levantar servidor ngrok (opcional):
+Si deseas exponer tu aplicación a través de ngrok para pruebas o puedes usar el puerto `5000` en local:
+
+```bash
+ngrok http 5000
+```
+
+3. Ejecutar la aplicación:
+Ejecuta la aplicación Flask:
+
+```bash
+python3 app.py
+```
 
 ## Comunicación con la API
 ### Acceso

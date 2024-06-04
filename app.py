@@ -17,8 +17,16 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
+# app.config['JWT_SECRET_KEY_USER'] = os.getenv('JWT_SECRET_KEY_USER')
+# app.config['JWT_SECRET_KEY_ADMIN'] = os.getenv('JWT_SECRET_KEY_ADMIN')
+
+# Inicializa JWTManager con una clave temporal
+# app.config['JWT_SECRET_KEY'] = app.config['JWT_SECRET_KEY_ADMIN']
+
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 jwt = JWTManager(app)
+
+admin_key = os.getenv('ADMIN_SECRET_KEY')
 
 client = MongoClient(os.getenv('MONGO_URI'))
 db = client['security-challenge']
@@ -48,6 +56,16 @@ user_schema = {
     'avatar': {'type': 'string'},
     'fec_birthday': {'type': 'datetime'},
     'id': {'type': 'string'}
+}
+
+users = {
+    'admin': {'password': admin_key , 'role': 'admin'},
+    'user': {'password': admin_key, 'role': 'user'},
+    'bi_user': {'password': admin_key, 'role': 'business_intelligence'},
+    'marketing_user': {'password': admin_key, 'role': 'marketing'},
+    'atencion_user': {'password': admin_key, 'role': 'atencion_al_cliente'},
+    'finanzas_user': {'password': admin_key, 'role': 'finanzas'},
+    'seguridad_user': {'password': admin_key, 'role': 'seguridad_y_fraude'}
 }
 
 def is_valid_iso_date(date_string):
@@ -104,12 +122,15 @@ def role_required(role):
 def login():
     username = request.json.get('username', None)
     password = request.json.get('password', None)
-    role = request.json.get('role', None)
+    # role = request.json.get('role', None)
 
-    if username != 'admin' or password != 'password':
+    user = users.get(username)
+    if not user or user['password'] != password:
         return jsonify({"msg": "Bad username or password"}), 401
 
+    role = user['role']
     access_token = create_access_token(identity=username, additional_claims={"role": role})
+    
     return jsonify(access_token=access_token)
 
 @app.route('/')
@@ -181,14 +202,14 @@ def get_usuarios():
         logger.info(user)
     
     users = [decrypt_data(user) for user in encrypted_users]
-    
-    if role == 'user':
+
+    if role != 'admin':
         users = [{'user_name': user['user_name']} for user in users]
 
     # No se necesita eliminar los datos sensibles, ya que no fueron desencriptados en decrypt_data
     logger.info("Safe users:")
     for user in users:
-        logger.info(user)
+        logger.info(user)   
     
     return jsonify(users), 200
 
